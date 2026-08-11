@@ -20,10 +20,13 @@ import static android.view.Display.DEFAULT_DISPLAY;
 
 import android.content.Context;
 import android.graphics.Rect;
+import android.os.RemoteException;
 import android.util.ArrayMap;
 import android.view.DisplayCutout;
+import android.view.IWindowManager;
 import android.view.Surface;
 import android.view.WindowManager;
+import android.view.WindowManagerGlobal;
 import android.view.WindowMetrics;
 
 import com.android.internal.policy.SystemBarUtils;
@@ -97,6 +100,17 @@ public class SystemWindowManagerProxy extends WindowManagerProxy {
         // See b/264656380, calculate the status bar height manually as the inset in the system
         // server might not be updated by this point yet causing extra DeviceProfile updates
         return SystemBarUtils.getStatusBarHeight(context);
+    }
+
+    @Override
+    protected boolean hasNavigationBar(Context context) {
+        try {
+            IWindowManager windowManager = WindowManagerGlobal.getWindowManagerService();
+            return windowManager.hasNavigationBar(context.getDisplayId());
+        } catch (RemoteException e) {
+            // Preserve the existing inset behavior if system-server cannot be queried.
+            return true;
+        }
     }
 
     @Override

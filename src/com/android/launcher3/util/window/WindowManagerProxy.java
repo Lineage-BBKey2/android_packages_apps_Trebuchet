@@ -144,6 +144,15 @@ public class WindowManagerProxy implements ResourceBasedOverride, SafeCloseable 
     }
 
     /**
+     * Returns whether WindowManager provides a software navigation bar for this display.
+     *
+     * <p>The system Launcher overrides this because querying IWindowManager requires platform APIs.
+     */
+    protected boolean hasNavigationBar(Context context) {
+        return true;
+    }
+
+    /**
      * Returns an updated insets, accounting for various Launcher UI specific overrides like taskbar
      */
     public WindowInsets normalizeWindowInsets(Context context, WindowInsets oldInsets,
@@ -155,7 +164,10 @@ public class WindowManagerProxy implements ResourceBasedOverride, SafeCloseable 
         }
 
         WindowInsets.Builder insetsBuilder = new WindowInsets.Builder(oldInsets);
-        Insets navInsets = oldInsets.getInsets(WindowInsets.Type.navigationBars());
+        final boolean hasNavBar = hasNavigationBar(context);
+        Insets navInsets = hasNavBar
+                ? oldInsets.getInsets(WindowInsets.Type.navigationBars())
+                : Insets.NONE;
 
         Resources systemRes = context.getResources();
         Configuration config = systemRes.getConfiguration();
@@ -164,7 +176,7 @@ public class WindowManagerProxy implements ResourceBasedOverride, SafeCloseable 
         boolean isGesture = isGestureNav(context);
         boolean isPortrait = config.screenHeightDp > config.screenWidthDp;
 
-        int bottomNav = isLargeScreen
+        int bottomNav = !hasNavBar || isLargeScreen
                 ? 0
                 : (isPortrait
                         ? getDimenByName(systemRes, NAVBAR_HEIGHT)
@@ -173,7 +185,7 @@ public class WindowManagerProxy implements ResourceBasedOverride, SafeCloseable 
                                 : 0));
         int leftNav = navInsets.left;
         int rightNav = navInsets.right;
-        if (!isLargeScreen && !isGesture && !isPortrait) {
+        if (hasNavBar && !isLargeScreen && !isGesture && !isPortrait) {
             // In 3-button landscape/seascape, Launcher should always have nav insets regardless if
             // it's initiated from fullscreen apps.
             int navBarWidth = getDimenByName(systemRes, NAVBAR_LANDSCAPE_LEFT_RIGHT_SIZE);
@@ -311,6 +323,7 @@ public class WindowManagerProxy implements ResourceBasedOverride, SafeCloseable 
 
         boolean isTablet = swDp >= MIN_TABLET_WIDTH;
         boolean isTabletOrGesture = isTablet || isGestureNav(context);
+        final boolean hasNavBar = hasNavigationBar(context);
 
         // Use the status bar height resources because current system API to get the status bar
         // height doesn't allow to do this for an arbitrary display, it returns value only
@@ -322,19 +335,28 @@ public class WindowManagerProxy implements ResourceBasedOverride, SafeCloseable 
 
         int navBarHeightPortrait, navBarHeightLandscape, navbarWidthLandscape;
 
-        navBarHeightPortrait = isTablet
-                ? (mTaskbarDrawnInProcess
-                        ? 0 : context.getResources().getDimensionPixelSize(R.dimen.taskbar_size))
-                : getDimenByName(systemRes, NAVBAR_HEIGHT);
+        if (!hasNavBar) {
+            navBarHeightPortrait = 0;
+            navBarHeightLandscape = 0;
+            navbarWidthLandscape = 0;
+        } else {
+            navBarHeightPortrait = isTablet
+                    ? (mTaskbarDrawnInProcess
+                            ? 0
+                            : context.getResources().getDimensionPixelSize(R.dimen.taskbar_size))
+                    : getDimenByName(systemRes, NAVBAR_HEIGHT);
 
-        navBarHeightLandscape = isTablet
-                ? (mTaskbarDrawnInProcess
-                        ? 0 : context.getResources().getDimensionPixelSize(R.dimen.taskbar_size))
-                : (isTabletOrGesture
-                        ? getDimenByName(systemRes, NAVBAR_HEIGHT_LANDSCAPE) : 0);
-        navbarWidthLandscape = isTabletOrGesture
-                ? 0
-                : getDimenByName(systemRes, NAVBAR_LANDSCAPE_LEFT_RIGHT_SIZE);
+            navBarHeightLandscape = isTablet
+                    ? (mTaskbarDrawnInProcess
+                            ? 0
+                            : context.getResources().getDimensionPixelSize(R.dimen.taskbar_size))
+                    : (isTabletOrGesture
+                            ? getDimenByName(systemRes, NAVBAR_HEIGHT_LANDSCAPE)
+                            : 0);
+            navbarWidthLandscape = isTabletOrGesture
+                    ? 0
+                    : getDimenByName(systemRes, NAVBAR_LANDSCAPE_LEFT_RIGHT_SIZE);
+        }
 
         List<WindowBounds> result = new ArrayList<>(4);
         Point tempSize = new Point();
