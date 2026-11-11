@@ -251,8 +251,12 @@ public class DisplayController implements ComponentCallbacks, SafeCloseable {
     @Override
     public final void onConfigurationChanged(Configuration config) {
         Log.d(TASKBAR_NOT_DESTROYED_TAG, "DisplayController#onConfigurationChanged: " + config);
+        // An overlay can change navigation mode without changing display geometry.
+        // Reconcile after resources update even if its earlier broadcast saw old assets.
         if (config.densityDpi != mInfo.densityDpi
                 || config.fontScale != mInfo.fontScale
+                || WindowManagerProxy.INSTANCE.get(mContext).getNavigationMode(mWindowContext)
+                        != mInfo.getNavigationMode()
                 || !mInfo.mScreenSizeDp.equals(
                         new PortraitSize(config.screenHeightDp, config.screenWidthDp))
                 || mWindowContext.getDisplay().getRotation() != mInfo.rotation
